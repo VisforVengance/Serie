@@ -1,0 +1,121 @@
+import os
+import discord
+from discord.ext import commands
+from dotenv import load_dotenv
+
+load_dotenv()
+TOKEN = os.getenv("MTQ1Njc1OTg4ODY3MDYyMTcwNg.GYQEnu.JJahrUftpRE0LD_Ip0hduNOt-lJ-QE_B9FZZXA
+")
+
+intents = discord.Intents.default()
+intents.message_content = True
+intents.members = True
+
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+INITIAL_EXTENSIONS = [
+    "cogs.afk",
+    "cogs.admin",
+    "cogs.spells",
+    "cogs.pvp",
+    "cogs.ai",
+    "cogs.mod",
+]
+
+
+@bot.event
+async def on_ready():
+    print(f"Serie logged in as {bot.user} (ID: {bot.user.id})")
+
+
+async def load_extensions():
+    for ext in INITIAL_EXTENSIONS:
+        try:
+            await bot.load_extension(ext)
+        except Exception as e:
+            print(f"Failed to load {ext}: {e}")
+
+
+@bot.event
+async def setup_hook():
+    await load_extensions()
+
+
+bot.run(MTQ1Njc1OTg4ODY3MDYyMTcwNg.GYQEnu.JJahrUftpRE0LD_Ip0hduNOt-lJ-QE_B9FZZXA
+)
+
+
+import time
+import discord
+from discord.ext import commands
+
+class AFK(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        # {guild_id: {user_id: {"reason": str, "since": float}}}
+        self.afk = {}
+
+    def get_guild_afk(self, guild_id: int):
+        if guild_id not in self.afk:
+            self.afk[guild_id] = {}
+        return self.afk[guild_id]
+
+    @commands.command(name="afk")
+    async def set_afk(self, ctx, *, reason: str = "AFK"):
+        """Set or remove AFK status."""
+        guild_afk = self.get_guild_afk(ctx.guild.id)
+        user_id = ctx.author.id
+
+        if user_id in guild_afk:
+            guild_afk.pop(user_id, None)
+            try:
+                await ctx.author.edit(nick=ctx.author.display_name.replace("[AFK] ", ""))
+            except discord.Forbidden:
+                pass
+            await ctx.send(f"{ctx.author.mention} welcome back, AFK removed.")
+            return
+
+        guild_afk[user_id] = {"reason": reason, "since": time.time()}
+        try:
+            await ctx.author.edit(nick=f"[AFK] {ctx.author.display_name}")
+        except discord.Forbidden:
+            pass
+        await ctx.send(f"{ctx.author.mention} is now AFK: {reason}")
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if message.author.bot or not message.guild:
+            return
+
+        guild_afk = self.get_guild_afk(message.guild.id)
+
+        # If AFK user sends a message, remove AFK
+        if message.author.id in guild_afk:
+            guild_afk.pop(message.author.id, None)
+            try:
+                await message.author.edit(
+                    nick=message.author.display_name.replace("[AFK] ", "")
+                )
+            except discord.Forbidden:
+                pass
+            await message.channel.send(
+                f"{message.author.mention} AFK removed because you sent a message."
+            )
+
+        # Notify when mentioning AFK users
+        if message.mentions:
+            mentioned_afk = []
+            for m in message.mentions:
+                data = guild_afk.get(m.id)
+                if data:
+                    duration = int(time.time() - data["since"])
+                    minutes = duration // 60
+                    mentioned_afk.append(
+                        f"{m.display_name} is AFK: {data['reason']} ({minutes}m ago)"
+                    )
+            if mentioned_afk:
+                await message.channel.send("\n".join(mentioned_afk))
+
+
+async def setup(bot):
+    await bot.add_cog(AFK(bot))
